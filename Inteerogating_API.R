@@ -4,6 +4,10 @@ install.packages("httpuv")
 library(httpuv)
 install.packages("httr")
 library(httr)
+install.packages("ggplot2")
+install.packages("plotly")
+require(devtools)
+library(plotly)
 
 # Can be github, linkedin etc depending on application
 oauth_endpoints("github")
@@ -146,7 +150,78 @@ for (i in 1:length(usernames))
   }
   next
 }
+Sys.setenv("plotly_username" = "doryan1998")
+Sys.setenv("plotly_api_key" = "Afsq4VjAo8Na0czZHyVJ")
 
 
+# Visual 1: Scatter plot of Followers vs. Repositories for each user, colour coded by year they joined GitHub
+plot1 = plot_ly(data = allusers.DF, x = ~Repositories, y = ~Followers, 
+                text = ~paste("Followers: ", Followers, "<br>Repositories: ", 
+                              Repositories, "<br>Date Created:", DateCreated), color = ~DateCreated)
+plot1
+
+api_create(plot1, filename = "Followers vs. Repositories")
+
+# Visual 2: Scatter plot of Followers vs. Following for each user
+plot2 = plot_ly(data = allusers.DF, x = ~Following, y = ~Followers,colorscale='Viridis', text = ~paste("Following: ", Following, 
+                                                                                                       "<br>Followers: ", Followers))
+plot2
+
+api_create(plot2, filename = "Followers vs. Following")
+
+# Data required for visual 3: Bar chart of most popular languages used by each user
+languages = c()
+
+for (i in 1:length(allusers.DF))
+{
+  RepositoriesUrl = paste("https://api.github.com/users/", allusers[i], "/repos", sep = "")
+  Repositories = GET(RepositoriesUrl, gtoken)
+  RepositoriesContent = content(Repositories)
+  RepositoriesDF = jsonlite::fromJSON(jsonlite::toJSON(RepositoriesContent))
+  RepositoriesNames = RepositoriesDF$name
+  
+  #Loop through users repos
+  for (j in 1: length(RepositoriesNames))
+  {
+    #add repos to data frame
+    RepositoriesUrl2 = paste("https://api.github.com/repos/", allusers[i], "/", RepositoriesNames[j], sep = "")
+    Repositories2 = GET(RepositoriesUrl2, gtoken)
+    RepositoriesContent2 = content(Repositories2)
+    RepositoriesDF2 = jsonlite::fromJSON(jsonlite::toJSON(RepositoriesContent2))
+    language = RepositoriesDF2$language
+    
+    #Removes repos with unknown languages
+    if (length(language) != 0 && language != "<NA>")
+    {
+      languages[length(languages)+1] = language
+    }
+    next
+  }
+  next
+}
+
+
+allLanguages = sort(table(languages), increasing=TRUE)
+
+top10Languages = allLanguages[(length(allLanguages)-9):length(allLanguages)] 
+
+#converts to dataframe
+languageDF = as.data.frame(top10Languages)
+
+#Plot data frame
+plot3 = plot_ly(data = languageDF, x = languageDF$languages, y = languageDF$Freq, type = "bar")
+plot3
+api_create(plot3, filename = "10 Most Popular Languages")
+
+# Visualisation 4: heatmap of number of followers by geographical location
+followers.DF = allusers.DF$Followers
+plot4 = plot_ly(allusers.DF, type='choropleth',
+                locations=c("UK","Saudi Arabia","Kazakhstan","Iran", "Greenland","USA", "Italy", "Ireland","Norway","Chile","Egypt","Morocco","South Africa", "China", "Germany", "Australia", "Austria", "The Netherlands", "Switzerland", "Brazil", "Russia", "Mexico", "Thailand", "Canada", "India", "Ukraine", "Colombia"),
+                locationmode='country names',
+                colorscale='Viridis',
+                z=c(10,20,30,40,50,60,70,80,90,100,110,120,130,140,150,160,170,180,600,1000,1050,1200,1800,1400,1100,1250,1300))
+
+plot4
+api_create(plot4, filename = "Followers Geographical Locations")
 
 
